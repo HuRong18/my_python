@@ -65,7 +65,7 @@ def train():
     dnn = DNN_re.DNN([1 / 4, 2 / 4, 3 / 4], device)
     loss = 1
     i = 1
-    for i in range(10000):
+    for i in range(3000):
         # torch.set_default_dtype(torch.float64)
         x, feature = dataset(32)
         input = torch.from_numpy(x).to(torch.float32).to(device)
@@ -82,15 +82,15 @@ def train():
 
 
 def predict(filename):
+    alpha_list = [1 / 4, 1 / 2, 3 / 4]
     test_net = DNN_re.DNN(const.alpha_list, device)
     test_net.load_state_dict(torch.load(filename))
     test_net.eval()
-    alpha_list = [1 / 4, 1 / 2, 3 / 4]
     with torch.no_grad():
         for route in range(1000):
             x, feature = dataset(1)
             input = torch.from_numpy(x).to(torch.float32).to(device)
-            expect: torch.Tensor = torch.from_numpy(feature).to(torch.float32).reshape(3, const.dimension_mm, 1)\
+            expect: torch.Tensor = torch.from_numpy(feature).to(torch.float32).reshape(3, const.dimension_mm, 1) \
                 .to(device)
             appro = test_net.forward(input)  # 发送给workers的计算任务
             coff = interpolate(np.expand_dims(appro.squeeze(0).numpy(), axis=1))  # 得到的多项式系数
@@ -102,8 +102,8 @@ def predict(filename):
                 res.append(tmp)
             res = torch.from_numpy(np.concatenate(res, 0))
             for i in range(len(alpha_list)):
-                NRMSE = math.sqrt(torch.pow(expect.squeeze(0)[i] - res[i], 2).sum().item()
-                                  / torch.pow(expect, 2).sum().item())
+                NRMSE = math.sqrt(torch.pow(expect[i] - res[i], 2).sum().item()
+                                  / torch.pow(expect[i], 2).sum().item())
                 print('第{}轮测试的第{}个NRMSE:{}'.format(route + 1, i + 1, NRMSE))
                 i += 1
 

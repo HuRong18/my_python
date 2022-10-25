@@ -22,10 +22,9 @@ class MLP(nn.Module):
         self.fc4 = nn.Linear(in_features=3 * const.dimension * const.dimension,
                              out_features=16 * const.dimension * const.dimension)
         self.fc5 = nn.Linear(in_features=16 * const.dimension * const.dimension,
-                             out_features=2 * const.dimension_mm* const.dimension_mm)
-        self.fc6 = nn.Linear(in_features=2 * const.dimension_mm* const.dimension_mm,
-                             out_features=1 * const.dimension_mm* const.dimension_mm)
-
+                             out_features=2 * const.dimension_mm * const.dimension_mm)
+        self.fc6 = nn.Linear(in_features=2 * const.dimension_mm * const.dimension_mm,
+                             out_features=1 * const.dimension_mm * const.dimension_mm)
 
     def forward(self, x):
         x = self.fc3(torch.tanh(self.fc2(torch.tanh(self.fc1(self.flatten(x))))))
