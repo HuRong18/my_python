@@ -75,7 +75,7 @@ def train():
         NRMSE = math.sqrt(loss.item() / torch.pow(expect, 2).sum().item())
         print('第{}次,loss:{},NRMSE:{}'.format(i, loss, NRMSE))
         i += 1
-    torch.save(dnn.state_dict(), 'dnn_params_test.pth')
+    torch.save(dnn.state_dict(), 'dnn_params.pth')
     # dnn.load_state_dict(torch.load('dnn_params.pth'))
     print(dnn)
     # test = dnn([1, 2, 3], device)
@@ -110,4 +110,4 @@ def predict(filename):
 
 if __name__ == '__main__':
     # train()
-    predict('./dnn_params_test.pth')
+    predict('./dnn_params.pth')
