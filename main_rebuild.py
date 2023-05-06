@@ -1,12 +1,13 @@
 import math
 import numpy as np
 import torch
+from numpy import pi
 from scipy.linalg import expm
 
 # 定义插值函数
-import DNN_re
-import util
-import const
+from gpu_project_hr.python_project.pythonProject_values import DNN_re
+from gpu_project_hr.python_project.pythonProject_values import util
+from gpu_project_hr.python_project.pythonProject_values import const
 
 device = util.get_device()
 
@@ -42,17 +43,57 @@ def dataset(batch_size):
     for i in range(batch_size):
         data = []
         feature = []
-        for j in range(3):
-            # A = 2*np.random.rand(const.dimension, const.dimension)-1
+        for j in range(const.input_k):
+            # A = 2 * np.random.rand(const.dimension, const.dimension) - 1
+            # k = []
+            # for d in range(const.dimension_mm):
+            #     tmp = np.random.uniform(-1, 1)
+            #     k.append(tmp)
+            # A = np.asarray(k).reshape(const.dimension, const.dimension)
             # a = A.T
-            # x = (A + a)/2
-            # f = np.linalg.eigvals(x)
+            # x = (A + a) / 2
+            # f = np.linalg.eigvalsh(x)
+            # f = np.sort(f, 0)  # 计算矩阵特征值
+
             A = np.random.rand(const.dimension, const.dimension)
-            a = np.linalg.norm(A)
-            x = A / a
-            f = np.exp(x)
+            a = A.T
+            x = (A + a) / 2
+            w, v = np.linalg.eigh(x)
+            # lamda=np.linalg.eig(x)
+            index = np.argmax(w)
+            f = v[:, index]  # 计算矩阵最大特征值对应的特征向量
+            if f[0] < 0:
+                f = f * (-1)
+
+            # I=np.identity(const.dimension)
+            # k = []
+            # for d in range(const.dimension_mm):
+            #     tmp = np.random.uniform(-2/const.dimension, 2/const.dimension)
+            #     k.append(tmp)
+            # E = np.asarray(k).reshape(const.dimension, const.dimension)
+            # for i in range(const.dimension):
+            #     for j in range(const.dimension):
+            #         if i==j:
+            #           E[i][j]=0
+            # x=I-E
+            # f=np.linalg.det(x)#计算实值方阵的行列式
+            # # E=np.diag([0]*const.dimensionm)
+
+            # A = np.random.rand(const.dimension, const.dimension)
+            # a = np.linalg.norm(A)
+            # x = A / a
+            # f = np.exp(x)#计算指数函数
+
+            # A=np.random.rand(const.dimension,const.dimension_mm)
             # x = A
-            # f = np.sqrt(x)
+            # f = np.sqrt(x)#计算开方根函数
+            # k = []
+            # for d in range(const.dimension_mm):
+            #     tmp = np.random.uniform(0, pi*2)
+            #     k.append(tmp)
+            # x = np.asarray(k).reshape(const.dimension, const.dimension)
+            # f = np.sin(x)  # 计算正余弦函数
+
             data.append(x)
             feature.append(f)
         data_set.append(data)
@@ -62,41 +103,49 @@ def dataset(batch_size):
 
 
 def train():
-    dnn = DNN_re.DNN([1 / 4, 2 / 4, 3 / 4], device)
+    dnn = DNN_re.DNN(const.alpha_list_BACC(const.input_k), device)
     loss = 1
     i = 1
-    for i in range(3000):
+    tmp = 0
+    # dnn.load_state_dict(torch.load('dnn_params_eigenvalue_5.pth'))
+    while i <= 5000:
         # torch.set_default_dtype(torch.float64)
         x, feature = dataset(32)
         input = torch.from_numpy(x).to(torch.float32).to(device)
-        expect: torch.Tensor = torch.from_numpy(feature).to(torch.float32).reshape(32, 3, const.dimension_mm, 1).to(
+        expect: torch.Tensor = torch.from_numpy(feature).to(torch.float32).reshape(-1, const.input_k, const.dimension,
+                                                                                  1).to(
             device)
         loss = dnn.train_by_data(input, expect)
         NRMSE = math.sqrt(loss.item() / torch.pow(expect, 2).sum().item())
         print('第{}次,loss:{},NRMSE:{}'.format(i, loss, NRMSE))
+        if i in range(49900, 50000):
+            tmp += NRMSE
         i += 1
-    torch.save(dnn.state_dict(), 'dnn_params.pth')
+    NRMSE_mean = tmp / 100
+    print(NRMSE_mean)
+    torch.save(dnn.state_dict(), 'dnn_params_eigvector_5.pth')
     # dnn.load_state_dict(torch.load('dnn_params.pth'))
-    print(dnn)
+    # print(dnn)
     # test = dnn([1, 2, 3], device)
 
 
 def predict(filename):
-    alpha_list = [1 / 4, 1 / 2, 3 / 4]
+    alpha_list = const.alpha_list_BACC(const.input_k)
     test_net = DNN_re.DNN(const.alpha_list, device)
     test_net.load_state_dict(torch.load(filename))
     test_net.eval()
+    error=0
     with torch.no_grad():
         for route in range(1000):
             x, feature = dataset(1)
             input = torch.from_numpy(x).to(torch.float32).to(device)
-            expect: torch.Tensor = torch.from_numpy(feature).to(torch.float32).reshape(3, const.dimension_mm, 1) \
+            expect: torch.Tensor = torch.from_numpy(feature).to(torch.float32).reshape(3, const.dimension, 1) \
                 .to(device)
             appro = test_net.forward(input)  # 发送给workers的计算任务
             coff = interpolate(np.expand_dims(appro.squeeze(0).numpy(), axis=1))  # 得到的多项式系数
             res = []
             for alpha in alpha_list:
-                tmp = np.zeros((1, const.dimension_mm, 1))
+                tmp = np.zeros((1, const.dimension, 1))
                 for index, u in enumerate(coff):
                     tmp += u * alpha ** index
                 res.append(tmp)
@@ -106,8 +155,12 @@ def predict(filename):
                                   / torch.pow(expect[i], 2).sum().item())
                 print('第{}轮测试的第{}个NRMSE:{}'.format(route + 1, i + 1, NRMSE))
                 i += 1
+                error=error+NRMSE
+        error_mean=error/(1000*len(alpha_list))
+        print(error_mean)
 
 
 if __name__ == '__main__':
     # train()
-    predict('./dnn_params.pth')
+    predict('./dnn_params_eigvector_5.pth')
+    # print(torch.cuda.is_available())
